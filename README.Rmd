@@ -24,29 +24,60 @@ library(nycflights13)
 Make a plot with three facets, one for each airport in the weather data.  The x-axis should be the day of the year (1:365) and the y-axis should be the mean temperature recorded on that day, at that airport.
 ```{r}
 library(lubridate)
-weather %>% mutate(day_of_year = yday(time_hour))
+weather %>% mutate(day_of_year = yday(time_hour)) %>% 
+  select(origin,temp,day_of_year) %>% 
+  group_by(origin,day_of_year) %>% 
+  summarise(meantemp = mean(temp)) %>% 
+  ggplot() + 
+  geom_line(mapping = aes(x=day_of_year,y=meantemp)) + 
+  facet_wrap(~origin)
+
 ```
 
 
 Make a non-tidy matrix of that data where each row is an airport and each column is a day of the year.  
 
 ```{r}
+weather %>% mutate(day_of_year = yday(time_hour)) %>% 
+  group_by(origin,day_of_year) %>% 
+  summarise(meantemp = mean(temp,na.rm = T)) %>% 
+  pivot_wider(names_from = day_of_year, values_from = meantemp)
 
 ```
 
 
 For each (airport, day) contruct a tidy data set of the airport's "performance" as the proportion of flights that departed less than an hour late. 
 ```{r}
+perf = flights %>% mutate(day_of_year = yday(time_hour)) %>% 
+  group_by(origin, day_of_year) %>% 
+  summarize(performance = mean(dep_delay<60, na.rm = T)) 
+perf
 ```
 
 Construct a tidy data set to that give weather summaries for each (airport, day).  Use the total precipitation, minimum visibility, maximum wind_gust, and average wind_speed.  
 ```{r}
+weat = weather %>% mutate(day_of_year = yday(time_hour)) %>%
+  select(origin,day_of_year,precip,visib,wind_gust,wind_speed) %>% 
+  filter(!is.na(wind_gust))%>% 
+  group_by(origin,day_of_year) %>% 
+  summarise(totalprecip = sum(precip,na.rm = T),
+            minvisib=min(visib,na.rm = T),
+            maxwind_gust=max(wind_gust,na.rm = T),
+            avewind_speed=mean(wind_speed,na.rm = T))
+weat
 ```
 
 Construct a linear model to predict the performance of each (airport,day) using the weather summaries and a "fixed effect" for each airport.  Display the summaries.  
 ```{r}
+dat = left_join(weat,perf)
+dat
+mymodel = lm(performance ~ origin+totalprecip+minvisib+maxwind_gust+avewind_speed,data = dat)
+summary(mymodel)
 ```
 
 Repeat the above, but only for EWR.  Obviously, exclude the fixed effect for each airport.
 ```{r}
+datEWR = filter(dat,origin == "EWR")
+mymodelEWR = lm(performance ~ totalprecip+minvisib+maxwind_gust+avewind_speed,data = datEWR)
+summary(mymodelEWR)
 ```
